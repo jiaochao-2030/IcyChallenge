@@ -12,10 +12,10 @@ function StoreSystem:Init(context)
 	self.robuxSuccess = self.services.ReplicatedStorage:WaitForChild("RE_RobuxSuccess")
 	self.ProductShopRE = self.services.ReplicatedStorage:WaitForChild("RE_ProductShop")
 	self.GetProductMapRF = self.services.ReplicatedStorage:WaitForChild("RF_GetProductMap")
-	
+
 	local stringValue1 = self.services.ReplicatedStorage:WaitForChild("ProductMap")
 	local stringValue2 = self.services.ReplicatedStorage:WaitForChild("ItemIdToProductIdMap")
-	
+
 	-- Wait for the values to be populated by the server (WaitForChild doesn't wait for the .Value)
 	while stringValue1.Value == "" or stringValue2.Value == "" do
 		task.wait(0.1)
@@ -31,7 +31,7 @@ function StoreSystem:Start()
 	self.robuxSuccess.OnClientEvent:Connect(function(itemId)
 		print("Robux Purchase Success: " .. itemId)
 	end)
-	
+
 	self.ProductShopRE.OnClientEvent:Connect(function(success, message)
 		print("Shop Purchase Result: ", success, message)
 	end)
@@ -97,11 +97,11 @@ function StoreSystem:_createStoreGui()
 	balanceLabel.TextScaled = true
 	balanceLabel.Font = Enum.Font.GothamBold
 	balanceLabel.Parent = mainFrame
-	
+
 	self.player:GetAttributeChangedSignal("Balance"):Connect(function () 
 		balanceLabel.Text = "Credits: $" .. math.floor(self.player:GetAttribute("Balance") or 0)
 	end)
-	
+
 	local shopBtn = Instance.new("TextButton")
 	shopBtn.Name = "ShopToggle"
 	shopBtn.Size = UDim2.fromOffset(120, 45)
@@ -166,7 +166,7 @@ function StoreSystem:_createStoreGui()
 		aligner.Size = UDim2.fromScale(1, 1)
 		aligner.BackgroundTransparency = 1
 		aligner.Parent = buyBtn
-		
+
 		local list = Instance.new("UIListLayout")
 		list.FillDirection = Enum.FillDirection.Horizontal
 		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -331,7 +331,7 @@ local function mainClient()
 	local RunService = game:GetService("RunService")
 	local TweenService = game:GetService("TweenService")
 	local HttpService = game:GetService("HttpService")
-	
+
 	local player = Players.LocalPlayer
 	local systems = {
 		UiSystem = UiSystem,

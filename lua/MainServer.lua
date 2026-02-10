@@ -168,32 +168,32 @@ function StoreSystem:Init(context)
 	}
 	self.ProductMap = {
 		[3529599654] = {
-				Id = "SpeedBooster",
-				Name = "👟 Turbo Soles",
-				Description = "30s of +12 WalkSpeed",
-				Price = 1000,
-				IsRobuxPrice = false,
-				RobuxProductId = 3529599654,
-			},
+			Id = "SpeedBooster",
+			Name = "👟 Turbo Soles",
+			Description = "30s of +12 WalkSpeed",
+			Price = 1000,
+			IsRobuxPrice = false,
+			RobuxProductId = 3529599654,
+		},
 		[3530195917] = {
-				Id = "IcyCoin10K",
-				Name = "💎 Icy Coin 10K Pack",
-				Description = "10,000 Icy Coins",
-				Price = 50,
-				IsRobuxPrice = true,
-				RobuxProductId = 3530195917,
-			},
-		}
+			Id = "IcyCoin10K",
+			Name = "💎 Icy Coin 10K Pack",
+			Description = "10,000 Icy Coins",
+			Price = 50,
+			IsRobuxPrice = true,
+			RobuxProductId = 3530195917,
+		},
+	}
 	local stringValue = Instance.new("StringValue")
 	stringValue.Name = "ProductMap"
 	stringValue.Value = self.HttpService:JSONEncode(self.ProductMap)
 	stringValue.Parent = self.ReplicatedStorage
-	
+
 	local stringValue2 = Instance.new("StringValue")
 	stringValue2.Name = "ItemIdToProductIdMap"
 	stringValue2.Value = self.HttpService:JSONEncode(self.ItemIdToProductIdMap)
 	stringValue2.Parent = self.ReplicatedStorage
-	
+
 	local rf = Instance.new("RemoteFunction")
 	rf.Name = "RF_GetProductMap"
 	rf.Parent = self.ReplicatedStorage
@@ -204,7 +204,7 @@ function StoreSystem:Init(context)
 	re1.Name = "RE_RobuxSuccess"
 	re1.Parent = self.ReplicatedStorage
 	self.RobuxSuccessRE = re1
-	
+
 	local re2 = Instance.new("RemoteEvent")
 	re2.Name = "RE_ProductShop"
 	re2.Parent = self.ReplicatedStorage
@@ -221,30 +221,30 @@ function StoreSystem:Init(context)
 		if not player or not item then
 			return
 		end
-		
+
 		local price = item.Price
 		local balance = self.Systems.SaveSystem:PlayerDataGet(player, "Balance")
-		
+
 		if balance and balance >= price then 
 			if itemId == "SpeedBooster" then
 				local currentBoostEnd = player:GetAttribute("SpeedBoostEnd") or os.time()
 				player:SetAttribute("SpeedBoostEnd", math.max(currentBoostEnd, os.time()) + 30)
 			end
-			
+
 			self.Systems.SaveSystem:PlayerDataAdd(player, "Balance", -price)
 			self.ProductShopRE:FireClient(player, true, "Purchase successful")
 		else
 			self.ProductShopRE:FireClient(player, false, "Insufficient funds")
 		end
 	end)
-	
+
 	-- Robux Receipt Handler
 	self.MarketplaceService.ProcessReceipt = function(receiptInfo)
 		local player = self.Players:GetPlayerByUserId(receiptInfo.PlayerId)
 		if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
 		local item = self:_GetItemFromProductId(receiptInfo.ProductId)
 		if not item then return Enum.ProductPurchaseDecision.NotProcessedYet end
-		
+
 		local itemId = item.Id
 		if itemId == "IcyCoin10K" then
 			local success = self.Systems.SaveSystem:PlayerDataAdd(player, "Balance", 10000)
@@ -289,7 +289,7 @@ function FailSystem:_fail(player)
 	local currentStage = player:GetAttribute("CurrentStage") or 1
 	local stageCfg = StageConfig.Stages[currentStage] or StageConfig.Stages[1]
 	local target = CFrame.new(0, stageCfg.BaseHeight + 4, 0)
-	
+
 	local startTime = os.clock()
 	local conn; conn = game:GetService("RunService").Heartbeat:Connect(function()
 		local a = math.clamp((os.clock() - startTime) / 1.2, 0, 1)
@@ -323,7 +323,7 @@ function SaveSystem:Init(context)
 	self.OnDataChanged = Instance.new("BindableEvent")
 	self.OnDataChanged.Name = "OnDataChanged"
 	self.OnDataChanged.Parent = game:GetService("ServerScriptService")
-	
+
 	game:BindToClose(function() for _, p in ipairs(self.Players:GetPlayers()) do self:_saveData(p) end end)
 end
 function SaveSystem:Update(dt) 
