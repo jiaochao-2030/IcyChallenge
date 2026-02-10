@@ -1,4 +1,3 @@
-
 --====================================================
 -- STORE SYSTEM
 --====================================================
@@ -227,6 +226,7 @@ function UiSystem:Init(context)
 	self.iceWarningLabel = self.gui:WaitForChild("IceWarning")
 	self.speedTimerLabel = self.gui:WaitForChild("SpeedTimer")
 	self.failTextLabel = self.gui:WaitForChild("FailText")
+    self.stageStatsLabel = self.gui:WaitForChild("StageStats")
 end
 
 function UiSystem:Start()
@@ -234,6 +234,16 @@ function UiSystem:Start()
 		self:_showIceWarning()
 		self:_showFailMessage()
 	end)
+
+    local function updateStats()
+        local current = self.player:GetAttribute("CurrentStage") or 1
+        local best = self.player:GetAttribute("HighestStage") or 1
+        self.stageStatsLabel.Text = string.format("STAGE: %d\nBEST: %d", current, best)
+    end
+
+    self.player:GetAttributeChangedSignal("CurrentStage"):Connect(updateStats)
+    self.player:GetAttributeChangedSignal("HighestStage"):Connect(updateStats)
+    updateStats()
 end
 
 function UiSystem:Update(dt)
@@ -276,6 +286,23 @@ function UiSystem:_createIcyGui(player, playerGui)
 	createLabel("IceWarning", UDim2.fromScale(0.3, 0.15), UDim2.fromScale(0.4, 0.1), Color3.fromRGB(200, 240, 255))
 	createLabel("SpeedTimer", UDim2.fromScale(0.35, 0.05), UDim2.fromScale(0.3, 0.08), Color3.fromRGB(255, 255, 0))
 	createLabel("FailText", UDim2.fromScale(0.3, 0.4), UDim2.fromScale(0.4, 0.12), Color3.fromRGB(255, 100, 100))
+
+    -- Stage Stats Label (Top Right)
+    local stats = Instance.new("TextLabel")
+    stats.Name = "StageStats"
+    stats.Size = UDim2.fromScale(0.2, 0.1)
+    stats.Position = UDim2.new(1, -20, 0, 20)
+    stats.AnchorPoint = Vector2.new(1, 0)
+    stats.BackgroundTransparency = 0.5
+    stats.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    stats.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stats.TextScaled = true
+    stats.Font = Enum.Font.GothamBold
+    stats.TextXAlignment = Enum.TextXAlignment.Right
+    stats.Parent = icyGui
+    Instance.new("UICorner", stats).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIPadding", stats).PaddingRight = UDim.new(0, 10)
+    stats.Visible = true
 end
 
 function UiSystem:_fade(label, fadeIn, duration)

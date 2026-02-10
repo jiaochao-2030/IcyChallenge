@@ -1,4 +1,3 @@
-
 -- MainServer.server.lua
 -- Fully self-contained 
 
@@ -80,12 +79,6 @@ function StageSystem:_generateStage(stageId)
 end
 
 function StageSystem:_playTeleportEffect(hrp)
-    local light = Instance.new("PointLight")
-    light.Brightness = 5
-    light.Range = 15
-    light.Color = Color3.fromRGB(255, 255, 255)
-    light.Parent = hrp
-    
     local attachment = Instance.new("Attachment", hrp)
     local particles = Instance.new("ParticleEmitter")
     particles.Texture = "rbxassetid://2430536442" -- Sparkle texture
@@ -97,9 +90,16 @@ function StageSystem:_playTeleportEffect(hrp)
     
     task.delay(0.8, function()
         particles.Enabled = false
-        game:GetService("Debris"):AddItem(light, 0.5)
         game:GetService("Debris"):AddItem(attachment, 1.5)
     end)
+end
+
+function StageSystem:_updatePlayerStage(player, newStageId)
+    player:SetAttribute("CurrentStage", newStageId)
+    local currentBest = player:GetAttribute("HighestStage") or 1
+    if newStageId > currentBest then
+        self.Systems.SaveSystem:PlayerDataSet(player, "HighestStage", newStageId)
+    end
 end
 
 function StageSystem:_onFinishTouched(finish, hit)
@@ -108,7 +108,7 @@ function StageSystem:_onFinishTouched(finish, hit)
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not player or not hrp then return end
 	local nextStageId = finish:GetAttribute("NextStageId")
-	player:SetAttribute("CurrentStage", nextStageId)
+    self:_updatePlayerStage(player, nextStageId)
 	hrp.CFrame = CFrame.new(0, self.StageConfig[nextStageId].BaseHeight + 4, 0)
     self:_playTeleportEffect(hrp)
 end
@@ -117,39 +117,47 @@ function StageSystem:_createTeleportPads()
     local padContainer = Instance.new("Folder", workspace)
     padContainer.Name = "TeleportPads"
     
-    local startPos = Vector3.new(-30, 1, 10) -- Off to the side of the first stage
+    local startPos = Vector3.new(-30, 0.1, 10) -- Lowered further to floor
     
     for i, cfg in ipairs(self.StageConfig) do
+        -- 1. Teleport Pad
         local pad = Instance.new("Part")
-        pad.Name = "TeleportToStage" .. i
-        pad.Size = Vector3.new(6, 0.5, 6)
+        pad.Name = "TeleportPad" .. i
+        pad.Size = Vector3.new(6, 0.2, 6)
         pad.Position = startPos + Vector3.new(0, 0, (i-1) * 8)
         pad.Anchored = true
-        pad.Material = Enum.Material.Neon
-        pad.Color = Color3.fromRGB(255, 255, 255)
+        pad.Material = Enum.Material.SmoothPlastic
+        pad.Color = Color3.fromRGB(150, 150, 150)
         pad.Parent = padContainer
         
-        local labelPart = Instance.new("Part")
-        labelPart.Size = Vector3.new(4, 2, 0.1)
-        labelPart.Position = pad.Position + Vector3.new(0, 4, 0)
-        labelPart.Anchored = true
-        labelPart.Transparency = 1
-        labelPart.CanCollide = false
-        labelPart.Parent = pad
-        
-        local bg = Instance.new("BillboardGui")
-        bg.Size = UDim2.fromOffset(200, 50)
-        bg.AlwaysOnTop = true
-        bg.Parent = labelPart
-        
-        local text = Instance.new("TextLabel")
-        text.Size = UDim2.fromScale(1, 1)
-        text.BackgroundTransparency = 1
-        text.Text = "Stage " .. i
-        text.TextColor3 = Color3.fromRGB(255, 255, 255)
-        text.Font = Enum.Font.GothamBold
-        text.TextScaled = true
-        text.Parent = bg
+        -- 2. Billboard/Sign Part on the left of the pad
+        local sign = Instance.new("Part")
+        sign.Name = "TeleportSign" .. i
+        sign.Size = Vector3.new(6, 4, 0.2)
+        -- Positioned 6 studs to the left (negative X) and rotated to face the pad
+        sign.CFrame = pad.CFrame * CFrame.new(-6, 2.1, 0) * CFrame.Angles(0, math.rad(90), 0)
+        sign.Anchored = true
+        sign.Material = Enum.Material.SmoothPlastic
+        sign.Color = Color3.fromRGB(40, 40, 40)
+        sign.Parent = padContainer
+
+        -- 3. SurfaceGuis on both sides of the sign
+        local faces = {Enum.NormalId.Front, Enum.NormalId.Back}
+        for _, face in ipairs(faces) do
+            local sg = Instance.new("SurfaceGui")
+            sg.Face = face
+            sg.CanvasSize = Vector2.new(600, 400)
+            sg.Parent = sign
+            
+            local text = Instance.new("TextLabel")
+            text.Size = UDim2.fromScale(1, 1)
+            text.BackgroundTransparency = 1
+            text.Text = "Stage " .. i
+            text.TextColor3 = Color3.fromRGB(40, 140, 255) -- Bright blue
+            text.Font = Enum.Font.GothamBold
+            text.TextScaled = true
+            text.Parent = sg
+        end
         
         local debounce = false
         pad.Touched:Connect(function(hit)
@@ -159,19 +167,58 @@ function StageSystem:_createTeleportPads()
             local hrp = character and character:FindFirstChild("HumanoidRootPart")
             if player and hrp then
                 debounce = true
-                player:SetAttribute("CurrentStage", i)
-                hrp.CFrame = CFrame.new(0, cfg.BaseHeight + 5, 0)
-                self:_playTeleportEffect(hrp)
-                task.wait(1)
+                
+                local highest = player:GetAttribute("HighestStage") or 1
+                local isBlocked = i > highest
+                
+                -- Visual indicator colors
+                -- User request: Enabled -> Blue, Disabled -> Red
+                local oldColor = pad.Color
+                local mainColor = isBlocked and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 100, 255)
+                local outlineColor = isBlocked and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(50, 150, 255)
+                
+                pad.Color = mainColor
+
+                -- RING EFFECT (Highlight + Light)
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = mainColor
+                highlight.OutlineColor = outlineColor
+                highlight.FillTransparency = 0.6
+                highlight.OutlineTransparency = 0
+                highlight.Parent = character
+
+                local light = Instance.new("PointLight")
+                light.Color = mainColor
+                light.Brightness = 10
+                light.Range = 7.5
+                light.Parent = hrp
+                
+                -- WAIT 0.5 SECOND (Charging teleport)
+                task.wait(0.5)
+                
+                -- Cleanup visual effects
+                highlight:Destroy()
+                light:Destroy()
+                pad.Color = oldColor
+                
+                -- TELEPORT (only if stage reached/unlocked)
+                if not isBlocked then
+                    self:_updatePlayerStage(player, i)
+                    hrp.CFrame = CFrame.new(0, cfg.BaseHeight + 5, 0)
+                    self:_playTeleportEffect(hrp)
+                end
+                
+                task.wait(0.5)
                 debounce = false
             end
         end)
     end
 end
 
-function StageSystem:Init()
+function StageSystem:Init(context)
 	if self.Inited then return end
 	self.Inited = true
+    self.Systems = context.Systems
 	self.Players = game:GetService("Players")
 	self.StageConfig = StageConfig.Stages
 	self.StagesFolder = workspace:FindFirstChild("Stages") or Instance.new("Folder", workspace)
@@ -180,7 +227,9 @@ function StageSystem:Init()
 		self:_generateStage(stageId)
 		self:_turnStage(stageId)
 	end
-	self.Players.PlayerAdded:Connect(function(player) player:SetAttribute("CurrentStage", 1) end)
+	self.Players.PlayerAdded:Connect(function(player) 
+        player:SetAttribute("CurrentStage", 1) 
+    end)
 	for _, part in ipairs(self.StagesFolder:GetChildren()) do
 		if part.Name == "Finish" then part.Touched:Connect(function(hit) self:_onFinishTouched(part, hit) end) end
 	end
@@ -444,7 +493,7 @@ function SaveSystem:_loadData(player)
 	if success and data then 
 		self.Data[key] = data
 	else 
-		self.Data[key] = { CurrentStage = 1, Balance = 0 }
+		self.Data[key] = { CurrentStage = 1, HighestStage = 1, Balance = 0 }
 	end
 	for k, v in pairs(self.Data[key]) do player:SetAttribute(k, v) end
 end
