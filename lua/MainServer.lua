@@ -524,12 +524,25 @@ end
 function SaveSystem:_loadData(player)
 	local key = player.UserId
 	local success, data = pcall(function() return self.DataStore:GetAsync(key) end)
-	if success and data then 
+    
+    local defaultData = { CurrentStage = 1, HighestStage = 1, Balance = 0 }
+    
+	if success and data and type(data) == "table" then 
+        -- Ensure all required keys exist in the loaded data
+        for k, v in pairs(defaultData) do
+            if data[k] == nil then
+                data[k] = v
+            end
+        end
 		self.Data[key] = data
 	else 
-		self.Data[key] = { CurrentStage = 1, HighestStage = 1, Balance = 0 }
+		self.Data[key] = defaultData
 	end
-	for k, v in pairs(self.Data[key]) do player:SetAttribute(k, v) end
+    
+    -- Sync attributes to the player object
+	for k, v in pairs(self.Data[key]) do 
+        player:SetAttribute(k, v) 
+    end
 end
 
 function SaveSystem:_saveData(player)
