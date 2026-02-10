@@ -124,7 +124,12 @@ function StageSystem:_createTeleportPads()
         local pad = Instance.new("Part")
         pad.Name = "TeleportPad" .. i
         pad.Size = Vector3.new(6, 0.2, 6)
-        pad.Position = startPos + Vector3.new(0, 0, (i-1) * 8)
+        
+        -- Arrangement logic: 
+        -- Place all teleport pads in a simple straight line along the Z axis.
+        local pos = startPos + Vector3.new(0, 0, (i - 1) * 8)
+        
+        pad.Position = pos
         pad.Anchored = true
         pad.Material = Enum.Material.SmoothPlastic
         pad.Color = Color3.fromRGB(150, 150, 150)
@@ -399,13 +404,14 @@ FailSystem.FailingPlayers = {}
 
 function FailSystem:_isOnIce(character)
 	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return false end
+	if not hrp then return false, nil end
 	local raycastParams = RaycastParams.new(); raycastParams.FilterType = Enum.RaycastFilterType.Exclude; raycastParams.FilterDescendantsInstances = { character }
 	local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -6, 0), raycastParams)
-	return ray and ray.Instance and ray.Instance:GetAttribute("IsIcy") == true
+	local isIcy = ray and ray.Instance and ray.Instance:GetAttribute("IsIcy") == true
+    return isIcy, ray and ray.Instance
 end
 
-function FailSystem:_fail(player)
+function FailSystem:_fail(player, failedSegment)
 	if self.FailingPlayers[player] then return end
 	if player:GetAttribute("IceImmune") then return end
 
@@ -415,10 +421,23 @@ function FailSystem:_fail(player)
 
 	game:GetService("ReplicatedStorage").REV_IceFail:FireClient(player)
 	humanoid.WalkSpeed = 0; humanoid.JumpPower = 0
+    
 	local start = hrp.CFrame; 
-	local currentStage = player:GetAttribute("CurrentStage") or 1
-	local stageCfg = StageConfig.Stages[currentStage] or StageConfig.Stages[1]
-	local target = CFrame.new(0, stageCfg.BaseHeight + 4, 0)
+    
+    -- Find the specific stage the player failed on
+    local failedStageId = failedSegment:GetAttribute("StageId")
+    local startSegment = nil
+    
+    -- Find segment 1 of that stage
+    for _, part in ipairs(workspace.Stages:GetChildren()) do
+        if part:GetAttribute("StageId") == failedStageId and part:GetAttribute("SegmentId") == 1 then
+            startSegment = part
+            break
+        end
+    end
+    
+    -- Teleport target is above segment 1 of the failed stage
+	local target = startSegment and (startSegment.CFrame * CFrame.new(0, 4, 0)) or CFrame.new(0, 10, 0)
 
 	local startTime = os.clock()
 	local conn; conn = game:GetService("RunService").Heartbeat:Connect(function()
@@ -435,7 +454,14 @@ function FailSystem:Init(context)
 	end
 end
 function FailSystem:Update(dt)
-	for _, p in ipairs(self.Players:GetPlayers()) do if not self.FailingPlayers[p] and p.Character and self:_isOnIce(p.Character) then self:_fail(p) end end
+	for _, p in ipairs(self.Players:GetPlayers()) do 
+        if not self.FailingPlayers[p] and p.Character then
+            local isOnIce, segment = self:_isOnIce(p.Character)
+            if isOnIce then 
+                self:_fail(p, segment) 
+            end 
+        end 
+    end
 end
 
 -- =====================================================
