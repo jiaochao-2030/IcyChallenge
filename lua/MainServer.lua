@@ -79,6 +79,29 @@ function StageSystem:_generateStage(stageId)
 	for i = 1, segmentCount do previous = self:_createSlideSegment(stageId, i, previous, segmentCount) end
 end
 
+function StageSystem:_playTeleportEffect(hrp)
+    local light = Instance.new("PointLight")
+    light.Brightness = 5
+    light.Range = 15
+    light.Color = Color3.fromRGB(255, 255, 255)
+    light.Parent = hrp
+    
+    local attachment = Instance.new("Attachment", hrp)
+    local particles = Instance.new("ParticleEmitter")
+    particles.Texture = "rbxassetid://2430536442" -- Sparkle texture
+    particles.Color = ColorSequence.new(Color3.fromRGB(255, 255, 200))
+    particles.Rate = 100
+    particles.Speed = NumberRange.new(5, 10)
+    particles.Lifetime = NumberRange.new(0.5, 1)
+    particles.Parent = attachment
+    
+    task.delay(0.8, function()
+        particles.Enabled = false
+        game:GetService("Debris"):AddItem(light, 0.5)
+        game:GetService("Debris"):AddItem(attachment, 1.5)
+    end)
+end
+
 function StageSystem:_onFinishTouched(finish, hit)
 	local character = hit.Parent
 	local player = self.Players:GetPlayerFromCharacter(character)
@@ -87,6 +110,63 @@ function StageSystem:_onFinishTouched(finish, hit)
 	local nextStageId = finish:GetAttribute("NextStageId")
 	player:SetAttribute("CurrentStage", nextStageId)
 	hrp.CFrame = CFrame.new(0, self.StageConfig[nextStageId].BaseHeight + 4, 0)
+    self:_playTeleportEffect(hrp)
+end
+
+function StageSystem:_createTeleportPads()
+    local padContainer = Instance.new("Folder", workspace)
+    padContainer.Name = "TeleportPads"
+    
+    local startPos = Vector3.new(-30, 1, 10) -- Off to the side of the first stage
+    
+    for i, cfg in ipairs(self.StageConfig) do
+        local pad = Instance.new("Part")
+        pad.Name = "TeleportToStage" .. i
+        pad.Size = Vector3.new(6, 0.5, 6)
+        pad.Position = startPos + Vector3.new(0, 0, (i-1) * 8)
+        pad.Anchored = true
+        pad.Material = Enum.Material.Neon
+        pad.Color = Color3.fromRGB(255, 255, 255)
+        pad.Parent = padContainer
+        
+        local labelPart = Instance.new("Part")
+        labelPart.Size = Vector3.new(4, 2, 0.1)
+        labelPart.Position = pad.Position + Vector3.new(0, 4, 0)
+        labelPart.Anchored = true
+        labelPart.Transparency = 1
+        labelPart.CanCollide = false
+        labelPart.Parent = pad
+        
+        local bg = Instance.new("BillboardGui")
+        bg.Size = UDim2.fromOffset(200, 50)
+        bg.AlwaysOnTop = true
+        bg.Parent = labelPart
+        
+        local text = Instance.new("TextLabel")
+        text.Size = UDim2.fromScale(1, 1)
+        text.BackgroundTransparency = 1
+        text.Text = "Stage " .. i
+        text.TextColor3 = Color3.fromRGB(255, 255, 255)
+        text.Font = Enum.Font.GothamBold
+        text.TextScaled = true
+        text.Parent = bg
+        
+        local debounce = false
+        pad.Touched:Connect(function(hit)
+            if debounce then return end
+            local character = hit.Parent
+            local player = self.Players:GetPlayerFromCharacter(character)
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            if player and hrp then
+                debounce = true
+                player:SetAttribute("CurrentStage", i)
+                hrp.CFrame = CFrame.new(0, cfg.BaseHeight + 5, 0)
+                self:_playTeleportEffect(hrp)
+                task.wait(1)
+                debounce = false
+            end
+        end)
+    end
 end
 
 function StageSystem:Init()
@@ -104,6 +184,7 @@ function StageSystem:Init()
 	for _, part in ipairs(self.StagesFolder:GetChildren()) do
 		if part.Name == "Finish" then part.Touched:Connect(function(hit) self:_onFinishTouched(part, hit) end) end
 	end
+    self:_createTeleportPads()
 end
 
 -- =====================================================
