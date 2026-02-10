@@ -17,12 +17,20 @@ IceConfig.IceRate         = 0.1        -- probability of ice spawning per segmen
 -- Stage Config
 -- =====================================================
 local StageConfig = {}
-StageConfig.Stages = {
-	[1] = { Length = 400, Width = 20, IceRate = 0.1, SegmentLength = 20, SlopeAngle = math.rad(10), BaseHeight = 3, StageDirectionAngle = math.rad(0) },
-	[2] = { Length = 700, Width = 22, IceRate = 0.2, SegmentLength = 20, SlopeAngle = math.rad(10), BaseHeight = 30, StageDirectionAngle = math.rad(90) },
-	[3] = { Length = 1000, Width = 24, IceRate = 0.3, SegmentLength = 20, SlopeAngle = math.rad(10), BaseHeight = 60, StageDirectionAngle = math.rad(180) },
-	[4] = { Length = 1500, Width = 24, IceRate = 0.3, SegmentLength = 20, SlopeAngle = math.rad(10), BaseHeight = 90, StageDirectionAngle = math.rad(270) },
-}
+StageConfig.Stages = {}
+
+-- Dynamically generate 100 stages
+for i = 1, 100 do
+	StageConfig.Stages[i] = {
+		Length = 400 + (i - 1) * 45,                  -- Each level is slightly longer
+		Width = math.max(15, 24 - math.floor(i / 10)), -- Gets narrower every 10 levels
+		IceRate = math.min(0.7, 0.05 + (i * 0.007)),   -- Higher chance of ice as you progress
+		SegmentLength = 20,
+		SlopeAngle = math.rad(10),
+		BaseHeight = (i - 1) * 40 + 30,                -- Vertical stacking starting at 30
+		StageDirectionAngle = math.rad(((i - 1) * 17) % 360) -- Rotating direction by 17 degrees (Tight Spiral)
+	}
+end
 
 -- =====================================================
 -- StageSystem
