@@ -299,6 +299,42 @@ function StoreSystem:_GetItemFromItemId(itemId)
 	local productId = self.ItemIdToProductIdMap[itemId]
 	return self.ProductMap[productId]
 end
+
+function StoreSystem:_addToInventory(player, itemId)
+    local inv = self.Systems.SaveSystem:PlayerDataGet(player, "Inventory") or {}
+    table.insert(inv, itemId)
+    self.Systems.SaveSystem:PlayerDataSet(player, "Inventory", inv)
+end
+
+function StoreSystem:_useItem(player, slotIndex)
+    local inv = self.Systems.SaveSystem:PlayerDataGet(player, "Inventory") or {}
+    if slotIndex < 1 or slotIndex > #inv then return end
+    
+    local itemId = inv[slotIndex]
+    
+    -- Execute Item Effect
+    if itemId == "SpeedBooster" then
+        local currentBoostEnd = player:GetAttribute("SpeedBoostEnd") or os.time()
+        player:SetAttribute("SpeedBoostEnd", math.max(currentBoostEnd, os.time()) + 30)
+        
+        -- Remove from inventory (consumable)
+        table.remove(inv, slotIndex)
+        self.Systems.SaveSystem:PlayerDataSet(player, "Inventory", inv)
+        print("Used SpeedBooster for player " .. player.Name)
+    elseif itemId == "PogoStick" then
+        local currentBoostEnd = player:GetAttribute("JumpBoostEnd") or os.time()
+        player:SetAttribute("JumpBoostEnd", math.max(currentBoostEnd, os.time()) + 30)
+        
+        table.remove(inv, slotIndex)
+        self.Systems.SaveSystem:PlayerDataSet(player, "Inventory", inv)
+        print("Used PogoStick for player " .. player.Name)
+    elseif itemId == "IcyCoin10K" then
+        -- Consumed on purchase basically, record removed if they try to "use" it
+        table.remove(inv, slotIndex)
+        self.Systems.SaveSystem:PlayerDataSet(player, "Inventory", inv)
+    end
+end
+
 function StoreSystem:Init(context)
 	self.Players = game:GetService("Players")
 	self.ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -308,6 +344,7 @@ function StoreSystem:Init(context)
 	self.ItemIdToProductIdMap = {
 		SpeedBooster = 3529599654,
 		IcyCoin10K = 3530195917,
+		PogoStick = 3530195918,
 	}
 	self.ProductMap = {
 		[3529599654] = {
@@ -317,6 +354,14 @@ function StoreSystem:Init(context)
 			Price = 1000,
 			IsRobuxPrice = false,
 			RobuxProductId = 3529599654,
+		},
+		[3530195918] = {
+			Id = "PogoStick",
+			Name = "🚀 Pogo Stick",
+			Description = "30s of 3x Jump Power",
+			Price = 1500,
+			IsRobuxPrice = false,
+			RobuxProductId = 3530195918,
 		},
 		[3530195917] = {
 			Id = "IcyCoin10K",
@@ -353,6 +398,11 @@ function StoreSystem:Init(context)
 	re2.Parent = self.ReplicatedStorage
 	self.ProductShopRE = re2
 
+    -- Use Item RE
+    local re3 = Instance.new("RemoteEvent")
+    re3.Name = "RE_UseItem"
+    re3.Parent = self.ReplicatedStorage
+    self.UseItemRE = re3
 
 	self.GetProductMapRF.OnServerInvoke = function(player)
 		return self.ProductMap
@@ -369,17 +419,18 @@ function StoreSystem:Init(context)
 		local balance = self.Systems.SaveSystem:PlayerDataGet(player, "Balance")
 
 		if balance and balance >= price then 
-			if itemId == "SpeedBooster" then
-				local currentBoostEnd = player:GetAttribute("SpeedBoostEnd") or os.time()
-				player:SetAttribute("SpeedBoostEnd", math.max(currentBoostEnd, os.time()) + 30)
-			end
-
 			self.Systems.SaveSystem:PlayerDataAdd(player, "Balance", -price)
-			self.ProductShopRE:FireClient(player, true, "Purchase successful")
+            self:_addToInventory(player, itemId)
+			self.ProductShopRE:FireClient(player, true, "Purchase successful! Use it from inventory.")
 		else
 			self.ProductShopRE:FireClient(player, false, "Insufficient funds")
 		end
 	end)
+
+    -- item use
+    self.UseItemRE.OnServerEvent:Connect(function(player, slotIndex)
+        self:_useItem(player, slotIndex)
+    end)
 
 	-- Robux Receipt Handler
 	self.MarketplaceService.ProcessReceipt = function(receiptInfo)
@@ -392,6 +443,7 @@ function StoreSystem:Init(context)
 		if itemId == "IcyCoin10K" then
 			local success = self.Systems.SaveSystem:PlayerDataAdd(player, "Balance", 10000)
 			if success then
+                self:_addToInventory(player, itemId)
 				self.RobuxSuccessRE:FireClient(player, itemId)
 				return Enum.ProductPurchaseDecision.PurchaseGranted
 			end
@@ -401,6 +453,7 @@ function StoreSystem:Init(context)
 
 	self.Players.PlayerAdded:Connect(function(player)
 		player:SetAttribute("SpeedBoostEnd", 0)
+		player:SetAttribute("JumpBoostEnd", 0)
 	end)
 end
 
@@ -451,7 +504,13 @@ function FailSystem:_fail(player, failedSegment)
 	local conn; conn = game:GetService("RunService").Heartbeat:Connect(function()
 		local a = math.clamp((os.clock() - startTime) / 1.2, 0, 1)
 		hrp.CFrame = start:Lerp(target, a)
-		if a >= 1 then conn:Disconnect(); humanoid.WalkSpeed = 16; humanoid.JumpPower = 50; self.FailingPlayers[player] = nil end
+		if a >= 1 then 
+            conn:Disconnect()
+            humanoid.WalkSpeed = 16
+            humanoid.UseJumpPower = true
+            humanoid.JumpPower = 50
+            self.FailingPlayers[player] = nil 
+        end
 	end)
 end
 
@@ -507,7 +566,7 @@ function SaveSystem:PlayerDataAdd(player, key, value)
 	if not data then return false end
 	local old = data[key] or 0
 	data[key] = old + value
-	player:SetAttribute(key, data[key])
+	player:SetAttribute(key, type(data[key]) == "table" and game:GetService("HttpService"):JSONEncode(data[key]) or data[key])
 	self.OnDataChanged:Fire(player, key, data[key], old)
 	return true
 end
@@ -516,7 +575,7 @@ function SaveSystem:PlayerDataSet(player, key, value)
 	if not data then return false end
 	local old = data[key]
 	data[key] = value
-	player:SetAttribute(key, value)
+	player:SetAttribute(key, type(value) == "table" and game:GetService("HttpService"):JSONEncode(value) or value)
 	self.OnDataChanged:Fire(player, key, value, old)
 	return true
 end
@@ -525,7 +584,7 @@ function SaveSystem:_loadData(player)
 	local key = player.UserId
 	local success, data = pcall(function() return self.DataStore:GetAsync(key) end)
     
-    local defaultData = { CurrentStage = 1, HighestStage = 1, Balance = 0 }
+    local defaultData = { CurrentStage = 1, HighestStage = 1, Balance = 0, Inventory = {} }
     
 	if success and data and type(data) == "table" then 
         -- Ensure all required keys exist in the loaded data
@@ -541,7 +600,7 @@ function SaveSystem:_loadData(player)
     
     -- Sync attributes to the player object
 	for k, v in pairs(self.Data[key]) do 
-        player:SetAttribute(k, v) 
+        player:SetAttribute(k, type(v) == "table" and game:GetService("HttpService"):JSONEncode(v) or v) 
     end
 end
 

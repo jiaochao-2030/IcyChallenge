@@ -15,7 +15,7 @@ function StoreSystem:Init(context)
 	local stringValue1 = self.services.ReplicatedStorage:WaitForChild("ProductMap")
 	local stringValue2 = self.services.ReplicatedStorage:WaitForChild("ItemIdToProductIdMap")
 
-	-- Wait for the values to be populated by the server (WaitForChild doesn't wait for the .Value)
+	-- Wait for values to be populated
 	while stringValue1.Value == "" or stringValue2.Value == "" do
 		task.wait(0.1)
 	end
@@ -109,7 +109,7 @@ function StoreSystem:_createStoreGui()
 	shopBtn.Text = "SHOP"
 	shopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	shopBtn.Font = Enum.Font.GothamBold
-	shopBtn.TextSize = 18 -- Fixed size instead of TextScaled to keep it smaller
+	shopBtn.TextSize = 18
 	shopBtn.TextScaled = false
 	shopBtn.Parent = storeGui
 	Instance.new("UICorner", shopBtn)
@@ -154,13 +154,12 @@ function StoreSystem:_createStoreGui()
 		buyBtn.Size = UDim2.fromScale(0.28, 0.75)
 		buyBtn.Position = UDim2.fromScale(0.68, 0.125)
 		buyBtn.BackgroundColor3 = item.IsRobuxPrice and Color3.fromRGB(0, 160, 80) or Color3.fromRGB(40, 180, 100)
-		buyBtn.Text = "" -- Use custom labels for alignment
+		buyBtn.Text = ""
 		buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 		buyBtn.Font = Enum.Font.GothamBold
 		buyBtn.Parent = card
 		Instance.new("UICorner", buyBtn)
 
-		-- Content Aligner for Buy Button
 		local aligner = Instance.new("Frame")
 		aligner.Size = UDim2.fromScale(1, 1)
 		aligner.BackgroundTransparency = 1
@@ -175,13 +174,13 @@ function StoreSystem:_createStoreGui()
 
 		if item.IsRobuxPrice then
 			local icon = Instance.new("ImageLabel")
-			icon.Size = UDim2.fromOffset(28, 28) -- Increased size to match text better
+			icon.Size = UDim2.fromScale(0.3, 0.65)
 			icon.BackgroundTransparency = 1
 			icon.Image = "rbxasset://textures/ui/common/robux@3x.png"
 			icon.Parent = aligner
 
 			local priceText = Instance.new("TextLabel")
-			priceText.Size = UDim2.fromScale(0.5, 0.8)
+			priceText.Size = UDim2.fromScale(0.55, 0.8)
 			priceText.BackgroundTransparency = 1
 			priceText.Text = tostring(item.Price)
 			priceText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -190,7 +189,7 @@ function StoreSystem:_createStoreGui()
 			priceText.Parent = aligner
 		else
 			local priceText = Instance.new("TextLabel")
-			priceText.Size = UDim2.fromScale(0.8, 0.8)
+			priceText.Size = UDim2.fromScale(0.9, 0.8)
 			priceText.BackgroundTransparency = 1
 			priceText.Text = "$ " .. item.Price
 			priceText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -210,6 +209,169 @@ function StoreSystem:_createStoreGui()
 end
 
 --====================================================
+-- INVENTORY SYSTEM
+--====================================================
+local InventorySystem = {}
+
+function InventorySystem:Init(context)
+    self.context = context
+    self.player = context.Player
+    self.services = context.Services
+    self.UserInputService = game:GetService("UserInputService")
+    self.UseItemRE = self.services.ReplicatedStorage:WaitForChild("RE_UseItem")
+end
+
+function InventorySystem:Start()
+    self:_createInventoryGui()
+    
+    self.UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        local keyMap = {
+            [Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3,
+            [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6,
+            [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8, [Enum.KeyCode.Nine] = 9
+        }
+        local slot = keyMap[input.KeyCode]
+        if slot then
+            self.UseItemRE:FireServer(slot)
+        end
+    end)
+end
+
+function InventorySystem:_createInventoryGui()
+    local playerGui = self.player:WaitForChild("PlayerGui")
+    local invGui = Instance.new("ScreenGui")
+    invGui.Name = "InventoryUI"
+    invGui.ResetOnSpawn = false
+    invGui.Parent = playerGui
+
+    local overlay = Instance.new("TextButton")
+    overlay.Name = "ClickOutsideOverlay"
+    overlay.Size = UDim2.fromScale(1, 1)
+    overlay.BackgroundTransparency = 1
+    overlay.Text = ""
+    overlay.Visible = false
+    overlay.Parent = invGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.fromScale(0.35, 0.5)
+    mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 20, 35)
+    mainFrame.BackgroundTransparency = 0.2
+    mainFrame.Parent = overlay
+
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+    local stroke = Instance.new("UIStroke", mainFrame)
+    stroke.Color = Color3.fromRGB(80, 60, 90)
+    stroke.Thickness = 2
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.fromScale(1, 0.15)
+    title.BackgroundTransparency = 1
+    title.Text = "YOUR INVENTORY"
+    title.TextColor3 = Color3.fromRGB(255, 220, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamBold
+    title.Parent = mainFrame
+    Instance.new("UIPadding", title).PaddingTop = UDim.new(0.1, 0)
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.fromScale(0.9, 0.75)
+    scroll.Position = UDim2.fromScale(0.05, 0.2)
+    scroll.BackgroundTransparency = 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarThickness = 4
+    scroll.Parent = mainFrame
+
+    Instance.new("UIListLayout", scroll).Padding = UDim.new(0, 8)
+
+    local invBtn = Instance.new("TextButton")
+    invBtn.Name = "InvToggle"
+    invBtn.Size = UDim2.fromOffset(120, 45)
+    invBtn.Position = UDim2.new(0, 150, 1, -65)
+    invBtn.BackgroundColor3 = Color3.fromRGB(120, 0, 255)
+    invBtn.Text = "INVENTORY"
+    invBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    invBtn.Font = Enum.Font.GothamBold
+    invBtn.TextSize = 18
+    invBtn.Parent = invGui
+    Instance.new("UICorner", invBtn)
+
+    local function refreshList()
+        for _, child in ipairs(scroll:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+
+        local invStr = self.player:GetAttribute("Inventory") or "[]"
+        local inv = self.services.HttpService:JSONDecode(invStr)
+        local productMap = self.context.Systems.StoreSystem.productMap
+
+        for i, itemId in ipairs(inv) do
+            local itemData = nil
+            for _, p in pairs(productMap) do
+                if p.Id == itemId then
+                    itemData = p
+                    break
+                end
+            end
+
+            if itemData then
+                local card = Instance.new("Frame")
+                card.Size = UDim2.new(0.95, 0, 0, 50)
+                card.BackgroundColor3 = Color3.fromRGB(45, 35, 50)
+                card.Parent = scroll
+                Instance.new("UICorner", card)
+
+                local slotNum = Instance.new("TextLabel")
+                slotNum.Size = UDim2.fromScale(0.12, 0.6)
+                slotNum.Position = UDim2.fromScale(0.02, 0.2)
+                slotNum.BackgroundTransparency = 1
+                slotNum.Text = "[" .. i .. "]"
+                slotNum.TextColor3 = Color3.fromRGB(200, 200, 255)
+                slotNum.Font = Enum.Font.GothamBold
+                slotNum.TextScaled = true
+                slotNum.Parent = card
+
+                local name = Instance.new("TextLabel")
+                name.Size = UDim2.fromScale(0.55, 0.6)
+                name.Position = UDim2.fromScale(0.15, 0.2)
+                name.BackgroundTransparency = 1
+                name.Text = itemData.Name
+                name.TextColor3 = Color3.fromRGB(255, 255, 255)
+                name.TextXAlignment = Enum.TextXAlignment.Left
+                name.TextScaled = true
+                name.Font = Enum.Font.GothamBold
+                name.Parent = card
+
+                local status = Instance.new("TextLabel")
+                status.Size = UDim2.fromScale(0.2, 0.6)
+                status.Position = UDim2.fromScale(0.75, 0.2)
+                status.BackgroundTransparency = 1
+                status.Text = "USE: "..i
+                status.TextColor3 = Color3.fromRGB(255, 255, 255)
+                status.Font = Enum.Font.GothamBold
+                status.TextScaled = true
+                status.Parent = card
+            end
+        end
+    end
+
+    invBtn.MouseButton1Click:Connect(function()
+        overlay.Visible = not overlay.Visible
+        if overlay.Visible then refreshList() end
+    end)
+
+    overlay.MouseButton1Click:Connect(function()
+        overlay.Visible = false
+    end)
+
+    self.player:GetAttributeChangedSignal("Inventory"):Connect(refreshList)
+end
+
+--====================================================
 -- UI SYSTEM
 --====================================================
 local UiSystem = {}
@@ -225,6 +387,7 @@ function UiSystem:Init(context)
 	self.gui = self.player.PlayerGui:WaitForChild("IcyUI")
 	self.iceWarningLabel = self.gui:WaitForChild("IceWarning")
 	self.speedTimerLabel = self.gui:WaitForChild("SpeedTimer")
+    self.jumpTimerLabel = self.gui:WaitForChild("JumpTimer")
 	self.failTextLabel = self.gui:WaitForChild("FailText")
     self.stageStatsLabel = self.gui:WaitForChild("StageStats")
 end
@@ -248,19 +411,33 @@ end
 
 function UiSystem:Update(dt)
 	local serverBoostEnd = self.player:GetAttribute("SpeedBoostEnd") or 0
-	local timeLeft = math.max(0, serverBoostEnd - os.time())
+	local timeLeftS = math.max(0, serverBoostEnd - os.time())
 
-	if timeLeft > 0 then
+	if timeLeftS > 0 then
 		self.speedTimerLabel.Visible = true
-		self.speedTimerLabel.Text = "⚡ SPEED BOOST: " .. math.ceil(timeLeft) .. "s"
+		self.speedTimerLabel.Text = "⚡ SPEED BOOST: " .. math.ceil(timeLeftS) .. "s"
 	else
 		self.speedTimerLabel.Visible = false
 	end
+
+    local jumpBoostEnd = self.player:GetAttribute("JumpBoostEnd") or 0
+    local timeLeftJ = math.max(0, jumpBoostEnd - os.time())
+    if timeLeftJ > 0 then
+        self.jumpTimerLabel.Visible = true
+        self.jumpTimerLabel.Text = "🚀 JUMP BOOST: " .. math.ceil(timeLeftJ) .. "s"
+    else
+        self.jumpTimerLabel.Visible = false
+    end
 end
 
 function UiSystem:GetSpeedMultiplier()
 	local serverBoostEnd = self.player:GetAttribute("SpeedBoostEnd") or 0
 	return (serverBoostEnd - os.time()) > 0 and 1.8 or 1.0
+end
+
+function UiSystem:GetJumpMultiplier()
+	local jumpBoostEnd = self.player:GetAttribute("JumpBoostEnd") or 0
+	return (jumpBoostEnd - os.time()) > 0 and 3.0 or 1.0
 end
 
 function UiSystem:_createIcyGui(player, playerGui)
@@ -284,10 +461,10 @@ function UiSystem:_createIcyGui(player, playerGui)
 	end
 
 	createLabel("IceWarning", UDim2.fromScale(0.3, 0.15), UDim2.fromScale(0.4, 0.1), Color3.fromRGB(200, 240, 255))
-	createLabel("SpeedTimer", UDim2.fromScale(0.35, 0.05), UDim2.fromScale(0.3, 0.08), Color3.fromRGB(255, 255, 0))
+	createLabel("SpeedTimer", UDim2.fromScale(0.35, 0.05), UDim2.fromScale(0.3, 0.05), Color3.fromRGB(255, 255, 0))
+    createLabel("JumpTimer", UDim2.fromScale(0.35, 0.11), UDim2.fromScale(0.3, 0.05), Color3.fromRGB(0, 200, 255))
 	createLabel("FailText", UDim2.fromScale(0.3, 0.4), UDim2.fromScale(0.4, 0.12), Color3.fromRGB(255, 100, 100))
 
-    -- Stage Stats Label (Top Right)
     local stats = Instance.new("TextLabel")
     stats.Name = "StageStats"
     stats.Size = UDim2.fromScale(0.2, 0.1)
@@ -336,6 +513,7 @@ function MovementController:Init(context)
 	self.services = context.Services
 	self.enabled = true
 	self.baseWalkSpeed = 16
+    self.baseJumpPower = 50
 end
 
 function MovementController:Update(dt)
@@ -345,8 +523,16 @@ function MovementController:Update(dt)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
 
-	local multiplier = self.context.Systems.UiSystem:GetSpeedMultiplier()
-	humanoid.WalkSpeed = self.baseWalkSpeed * multiplier
+    -- Ensure the humanoid is using the JumpPower property
+    if not humanoid.UseJumpPower then
+        humanoid.UseJumpPower = true
+    end
+
+	local speedMultiplier = self.context.Systems.UiSystem:GetSpeedMultiplier()
+	humanoid.WalkSpeed = self.baseWalkSpeed * speedMultiplier
+
+    local jumpMultiplier = self.context.Systems.UiSystem:GetJumpMultiplier()
+    humanoid.JumpPower = self.baseJumpPower * jumpMultiplier
 end
 
 --====================================================
@@ -363,6 +549,7 @@ local function mainClient()
 	local systems = {
 		UiSystem = UiSystem,
 		StoreSystem = StoreSystem,
+        InventorySystem = InventorySystem,
 		MovementController = MovementController,
 	}
 
